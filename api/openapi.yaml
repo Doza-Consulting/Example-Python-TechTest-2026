@@ -1,0 +1,582 @@
+openapi: 3.0.3
+info:
+  title: EscapeQueue API
+  description: >
+    Booking engine for a chain of escape room venues. Customers can view room
+    availability publicly; authenticated venue staff manage bookings and
+    game-master assignments.
+
+
+    This contract defines *what* each endpoint should do. How it is
+    implemented (auth mechanism, error handling, validation strategy) is
+    up to you.
+  version: "1.0.0"
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: System
+    description: Health and status
+  - name: Auth
+    description: Registration and login
+  - name: Availability
+    description: Public room availability
+  - name: Bookings
+    description: Authenticated booking management
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Liveness check
+      security: []
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      description: >
+        Creates a user account. The password must never be stored in plain
+        text or returned in a response.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Conflict — email is already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in
+      description: >
+        Checks a registered user's credentials and returns a token to send
+        on later requests as `Authorization: Bearer <token>`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /rooms:
+    get:
+      tags: [Availability]
+      summary: List rooms
+      security: []
+      responses:
+        "200":
+          description: All rooms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Room"
+
+  /rooms/{id}/availability:
+    get:
+      tags: [Availability]
+      summary: Get available time slots for a room
+      description: >
+        Public, read-only endpoint. Returns available time slots for the
+        given room within an optional date range. Must not expose customer
+        or booking detail — only slot start/end times and availability.
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          required: false
+          description: Start of the date range to check (ISO 8601 date-time)
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: End of the date range to check (ISO 8601 date-time)
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Available slots for the room
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roomId:
+                    type: string
+                    format: uuid
+                  slots:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AvailabilitySlot"
+        "404":
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /bookings:
+    get:
+      tags: [Bookings]
+      summary: List bookings
+      description: >
+        Supports filtering (e.g. by roomId, status) and pagination. The
+        parameters below are indicative, not prescriptive.
+      parameters:
+        - name: roomId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/BookingStatus"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+      responses:
+        "200":
+          description: A page of bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Booking"
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+                  total:
+                    type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Bookings]
+      summary: Create a booking
+      description: >
+        Must validate partySize against the room's min/max capacity and
+        reject any request that overlaps an existing confirmed booking
+        for the same room.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingCreateRequest"
+      responses:
+        "201":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "400":
+          description: Validation error (bad party size, malformed input)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Conflict — requested slot overlaps an existing confirmed booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /bookings/{id}:
+    get:
+      tags: [Bookings]
+      summary: Get a single booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      tags: [Bookings]
+      summary: Update a booking
+      description: Reschedule, change party size, or cancel a booking.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingUpdateRequest"
+      responses:
+        "200":
+          description: Updated booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Conflict — updated slot overlaps an existing confirmed booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /bookings/{id}/assign:
+    post:
+      tags: [Bookings]
+      summary: Assign a game master to a booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gameMasterId]
+              properties:
+                gameMasterId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Booking with game master assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Booking or game master not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Auth mechanism is your choice (API key, JWT, session,
+        etc.) — this scheme is illustrative. Adjust to match your
+        implementation when testing in Swagger Editor / your own tooling.
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    BookingStatus:
+      type: string
+      enum: [confirmed, cancelled]
+
+    Room:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: The Vault
+        theme:
+          type: string
+          example: Heist
+        minPartySize:
+          type: integer
+          example: 2
+        maxPartySize:
+          type: integer
+          example: 6
+        durationMinutes:
+          type: integer
+          example: 60
+        createdAt:
+          type: string
+          format: date-time
+
+    AvailabilitySlot:
+      type: object
+      properties:
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        available:
+          type: boolean
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        customerName:
+          type: string
+          example: Priya Shah
+        partySize:
+          type: integer
+          example: 4
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+        gameMasterId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    BookingCreateRequest:
+      type: object
+      required: [roomId, customerName, partySize, startTime]
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        customerName:
+          type: string
+          example: Priya Shah
+        partySize:
+          type: integer
+          example: 4
+        startTime:
+          type: string
+          format: date-time
+          description: endTime is derived server-side from the room's durationMinutes.
+
+    BookingUpdateRequest:
+      type: object
+      description: All fields optional — send only what's changing.
+      properties:
+        partySize:
+          type: integer
+        startTime:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+
+    GameMaster:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Alex Rivera
+        email:
+          type: string
+          format: email
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Jordan Lee
+        email:
+          type: string
+          format: email
+        createdAt:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          example: Jordan Lee
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: partySize must be between minPartySize and maxPartySize for this room

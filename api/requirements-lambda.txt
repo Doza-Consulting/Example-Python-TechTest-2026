@@ -1,0 +1,3 @@
+# What the deployed Lambda needs (boto3 is already provided by the runtime).
+fastapi>=0.162,<1
+mangum>=0.19,<1

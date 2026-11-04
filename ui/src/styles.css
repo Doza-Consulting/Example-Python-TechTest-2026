@@ -1,0 +1,69 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1c1c28;
+  background: #f5f5fa;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.status {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: #ddd;
+}
+.status.up {
+  background: #c8f0d2;
+}
+.status.down {
+  background: #f6c9c9;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.card h3 {
+  margin: 0 0 0.25rem;
+}
+.theme {
+  color: #6b6b80;
+  margin: 0 0 0.5rem;
+}
+.error {
+  color: #b00020;
+}
+nav {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0 0.5rem;
+}
+nav a {
+  color: #4a4a68;
+  text-decoration: none;
+  padding-bottom: 0.2rem;
+}
+nav a.active {
+  color: #1c1c28;
+  border-bottom: 2px solid #1c1c28;
+}
+.note {
+  color: #6b6b80;
+  font-style: italic;
+}
