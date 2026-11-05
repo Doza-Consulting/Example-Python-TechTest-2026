@@ -1,0 +1,268 @@
+[
+  {
+    "TaskId": "UI-001",
+    "Task Title": "Design and implement a user registration screen",
+    "Task Description": "New staff need a way to create an account. Design and build a registration screen that collects the details the API needs and calls the register endpoint (see api/openapi.yaml). Think about what a user needs to see while they fill it in, when it fails, and when it succeeds. Add tests for the screen.",
+    "Acceptance Criteria": [
+      "A registration screen is reachable from the app navigation",
+      "The form collects name, email and password and submits them to POST /auth/register",
+      "Invalid input is caught in the UI where it can be, and errors returned by the API (for example a duplicate email) are shown clearly",
+      "The submit button cannot be pressed twice while a request is in flight",
+      "On success the user is told what to do next (for example sent to the sign-in page)",
+      "The screen has automated tests covering success, validation failure and an API error"
+    ],
+    "Branch": "ui"
+  },
+  {
+    "TaskId": "UI-002",
+    "Task Title": "Add sign-in, sign-out and protected pages",
+    "Task Description": "Registered users need to sign in so they can manage bookings. Build a sign-in screen that calls the login endpoint, keeps the user signed in, shows who is signed in, lets them sign out, and stops signed-out visitors from reaching staff-only pages. Add tests.",
+    "Acceptance Criteria": [
+      "A sign-in screen calls POST /auth/login and shows an error for bad credentials",
+      "After signing in, the token is sent on later API requests as a bearer token",
+      "The navigation reflects whether someone is signed in, and sign-out clears the session",
+      "A signed-out visitor who opens a staff-only page is redirected to sign in",
+      "Refreshing the page does not sign the user out",
+      "The behaviour is covered by automated tests"
+    ],
+    "Branch": "ui"
+  },
+  {
+    "TaskId": "UI-003",
+    "Task Title": "Show room availability to customers",
+    "Task Description": "Customers should be able to see when a room is free before they ask for a booking. Build a public view of a room's availability for a chosen day, using the availability endpoint. It should be clear which slots are free and which are taken, and it must work well on a phone.",
+    "Acceptance Criteria": [
+      "From the room list a user can open the availability for a room",
+      "The user can choose a date and sees that day's slots, each marked available or booked",
+      "Loading, empty (no sessions) and error states are handled",
+      "The page is usable on a narrow screen",
+      "The view has automated tests"
+    ],
+    "Branch": "ui"
+  },
+  {
+    "TaskId": "UI-004",
+    "Task Title": "Build a booking creation form",
+    "Task Description": "Signed-in staff need to create bookings for customers. Design and implement a form that creates a booking through the API, helping the user get it right first time and explaining clearly when the API rejects it.",
+    "Acceptance Criteria": [
+      "A signed-in user can choose a room, enter a customer name, party size and start time, and create the booking",
+      "The form tells the user about party-size limits for the chosen room before they submit",
+      "An overlap (409) and other API errors are shown in a way the user can act on",
+      "The user is not left on a stale form after success",
+      "The form is keyboard accessible and its inputs have proper labels",
+      "The form has automated tests"
+    ],
+    "Branch": "ui"
+  },
+  {
+    "TaskId": "UI-005",
+    "Task Title": "Manage bookings: reschedule, cancel and assign a game master",
+    "Task Description": "Staff need one screen to see and manage bookings. Extend or redesign the bookings screen so staff can find bookings and reschedule them, as well as cancel them and assign game masters, with feedback on every action.",
+    "Acceptance Criteria": [
+      "Staff can reschedule a booking and see the API's response, including conflicts",
+      "Staff can filter the list (for example by status or room) and move between pages",
+      "Cancelling asks for confirmation or can be undone, and the list reflects the change",
+      "Every action gives feedback and handles failure without losing the user's place",
+      "The new behaviour has automated tests"
+    ],
+    "Branch": "ui"
+  },
+  {
+    "TaskId": "API-001",
+    "Task Title": "Implement user registration",
+    "Task Description": "The register endpoint is stubbed. Implement POST /auth/register so new users can sign up and be stored. Decide how to validate input, how to protect passwords, and how to keep the two storage backends consistent. See api/openapi.yaml for the contract.",
+    "Acceptance Criteria": [
+      "POST /auth/register validates name, email and password and returns 400 on bad input",
+      "A valid request creates a user that is persisted through the Store, in both the SQLite and DynamoDB implementations",
+      "A duplicate email returns 409",
+      "The plain-text password is never stored or returned",
+      "The response matches the User schema in the OpenAPI contract",
+      "Automated tests cover success and each failure case"
+    ],
+    "Branch": "api"
+  },
+  {
+    "TaskId": "API-002",
+    "Task Title": "Implement authentication of registered users",
+    "Task Description": "The login endpoint is stubbed and every route is open. Implement POST /auth/login so registered users can prove who they are, and protect the booking endpoints so only authenticated users can call them. The choice of mechanism is yours; be ready to explain the trade-offs.",
+    "Acceptance Criteria": [
+      "POST /auth/login accepts valid credentials and returns something the client can send on later requests",
+      "Wrong credentials return 401 without revealing whether the email exists",
+      "Every /bookings endpoint returns 401 without valid authentication, while /health, /rooms and availability stay public",
+      "Credentials or secrets are not hard-coded in a way that is unsafe for a real deployment",
+      "Automated tests cover successful login, failed login and access with and without credentials"
+    ],
+    "Branch": "api"
+  },
+  {
+    "TaskId": "API-003",
+    "Task Title": "Implement room availability",
+    "Task Description": "Customers need to know when a room is free. Implement GET /rooms/:id/availability: decide how sessions are laid out for a room, mark each slot as available or not based on existing bookings, and keep customer detail out of the response.",
+    "Acceptance Criteria": [
+      "The endpoint is public and returns 404 for an unknown room",
+      "It honours optional from and to query parameters and rejects invalid ones with 400",
+      "Slots respect the room's durationMinutes, and a slot overlapping a confirmed booking is marked unavailable",
+      "Cancelled bookings do not block a slot",
+      "No booking or customer detail appears in the response",
+      "Automated tests cover the cases above"
+    ],
+    "Branch": "api"
+  },
+  {
+    "TaskId": "API-004",
+    "Task Title": "Implement booking creation and retrieval",
+    "Task Description": "Implement POST /bookings, GET /bookings and GET /bookings/:id. Creating a booking must respect the room's capacity and must never double-book a room. Listing should support filtering and pagination.",
+    "Acceptance Criteria": [
+      "POST /bookings validates input and rejects a party size outside the room's min/max with 400",
+      "endTime is derived from the room's duration, and an overlap with a confirmed booking for the same room returns 409",
+      "GET /bookings supports filtering (for example by room and status) and pagination, returning the totals",
+      "GET /bookings/:id returns 404 for an unknown booking",
+      "Automated tests cover validation, the overlap rule, filtering and pagination"
+    ],
+    "Branch": "api"
+  },
+  {
+    "TaskId": "API-005",
+    "Task Title": "Implement booking updates, cancellation and game master assignment",
+    "Task Description": "Implement PATCH /bookings/:id (reschedule, change party size, cancel) and POST /bookings/:id/assign. Updates must follow the same rules as creation, and a game master can only run one session at a time.",
+    "Acceptance Criteria": [
+      "PATCH accepts any of partySize, startTime and status, validates them, and returns 404 for an unknown booking",
+      "A reschedule that overlaps another confirmed booking returns 409, but a booking never conflicts with itself",
+      "Cancelling frees the slot so it can be booked again",
+      "POST /assign validates the booking and game master exist (404) and prevents the game master being double-booked",
+      "Automated tests cover the cases above"
+    ],
+    "Branch": "api"
+  },
+  {
+    "TaskId": "PLATFORM-001",
+    "Task Title": "Create a CI pipeline: lint, test and build",
+    "Task Description": "The CI workflow only echoes a message. Update it so every pull request and push to main installs dependencies, lints the code base, runs all tests and builds the whole stack. The repo has no linter yet, so choose and add one.",
+    "Acceptance Criteria": [
+      "The workflow runs on pull requests and pushes to main",
+      "It installs dependencies reproducibly, using the lockfile and a cache",
+      "A lint step runs for both api and ui, and fails the build on errors; the existing code passes it",
+      "API and UI tests run, and a failing test fails the workflow",
+      "The API, UI and Lambda bundle are built",
+      "The workflow uses the Node version the repo requires, and its steps are readable and easy to maintain"
+    ],
+    "Branch": "platform"
+  },
+  {
+    "TaskId": "PLATFORM-002",
+    "Task Title": "Containerise the application",
+    "Task Description": "Make the app runnable anywhere with containers. Write Dockerfiles for the API and the UI and a way to start the whole stack locally with one command.",
+    "Acceptance Criteria": [
+      "The API and UI each have a Dockerfile that builds a small, production-oriented image",
+      "A single command (for example docker compose up) starts a working stack that can register, sign in and create a booking",
+      "Configuration such as the port and secrets is passed by environment, not baked into images",
+      "Data survives a container restart in the local setup",
+      "A short note in the README explains how to run it"
+    ],
+    "Branch": "platform"
+  },
+  {
+    "TaskId": "PLATFORM-003",
+    "Task Title": "Deploy the application to a cloud platform",
+    "Task Description": "Get the working app running somewhere real. The repo includes Terraform for AWS, but you may use another platform if you can explain the choice. Deploy it, and show that the deployed app works.",
+    "Acceptance Criteria": [
+      "The application is deployed and reachable on a public URL",
+      "Registration, sign-in and booking work against the deployed API and its database",
+      "The infrastructure is defined as code, or the manual steps are written down well enough for someone else to repeat them",
+      "You can explain the cost, security and scaling characteristics of what you chose",
+      "Nothing sensitive is committed to the repo"
+    ],
+    "Branch": "platform"
+  },
+  {
+    "TaskId": "PLATFORM-004",
+    "Task Title": "Add continuous deployment",
+    "Task Description": "Extend the pipeline so a change that passes CI and is merged to main is deployed automatically. Think about how the pipeline authenticates to the cloud and what happens when a deploy goes wrong.",
+    "Acceptance Criteria": [
+      "A merge to main runs the checks and then deploys the API and the UI",
+      "Cloud credentials are not stored as long-lived keys in the repository or workflow, or the trade-off is explained",
+      "Deploys to the environment do not run at the same time as each other",
+      "There is a way to see what was deployed and to roll back",
+      "The pipeline stops if checks fail"
+    ],
+    "Branch": "platform"
+  },
+  {
+    "TaskId": "PLATFORM-005",
+    "Task Title": "Manage secrets and configuration safely",
+    "Task Description": "The API signs login tokens with a secret that falls back to an insecure development default, and Terraform keeps its state on the local machine. Make configuration and state safe for a real, shared environment.",
+    "Acceptance Criteria": [
+      "The deployed API gets a strong signing secret from a proper secret store or equivalent, not from source control",
+      "The API refuses to run in a deployed environment without that secret, or the risk is documented",
+      "Terraform state is held in a shared, locked and versioned remote backend, or the plan to do so is written down",
+      "There is separate configuration for at least two environments (for example dev and prod)",
+      "The changes are documented in the READMEs"
+    ],
+    "Branch": "platform"
+  },
+  {
+    "TaskId": "TESTING-001",
+    "Task Title": "Test registration, login and token handling in the API",
+    "Task Description": "The authentication code has no tests. Write tests that give you confidence it is correct and secure: password hashing, token creation and verification, and the register and login endpoints. Choose what belongs in unit tests and what in endpoint tests.",
+    "Acceptance Criteria": [
+      "Tests cover successful and failed registration, including validation and duplicate emails",
+      "Tests cover login success, wrong password and unknown email",
+      "Token behaviour is tested, including a tampered token and an expired token",
+      "Protected routes are shown to reject missing and invalid credentials",
+      "Tests are independent of each other and do not rely on shared state or the wall clock where avoidable"
+    ],
+    "Branch": "testing"
+  },
+  {
+    "TaskId": "TESTING-002",
+    "Task Title": "Test booking creation, updates and game master assignment in the API",
+    "Task Description": "The booking endpoints have no tests. Write endpoint tests for the business rules: capacity, overlap, cancellation, rescheduling and game master assignment. Find the edge cases a reviewer would worry about.",
+    "Acceptance Criteria": [
+      "Capacity limits and input validation are tested, including boundary values",
+      "Overlap rules are tested, including back-to-back bookings, cancelled bookings and rescheduling onto itself",
+      "Filtering and pagination are tested",
+      "Game master assignment, including double-booking and cancelled bookings, is tested",
+      "The tests read as documentation of the rules, with clear names and little duplication"
+    ],
+    "Branch": "testing"
+  },
+  {
+    "TaskId": "TESTING-003",
+    "Task Title": "Test the availability logic",
+    "Task Description": "Availability is computed from room settings and existing bookings, and has no tests. Write unit tests for the slot logic and endpoint tests for the availability endpoint, paying attention to boundaries and dates.",
+    "Acceptance Criteria": [
+      "Slot generation is unit tested, including opening and closing times and different room durations",
+      "Overlap detection is tested at the boundaries",
+      "The endpoint is tested for default and explicit date ranges, an unknown room and invalid input",
+      "The tests do not depend on the date the suite is run on",
+      "You can explain any behaviour you find that surprises you"
+    ],
+    "Branch": "testing"
+  },
+  {
+    "TaskId": "TESTING-004",
+    "Task Title": "Test the sign-up and sign-in screens",
+    "Task Description": "The registration, sign-in and route-protection code in the UI has no tests. Write component and integration tests that check what the user experiences, not how the code is written.",
+    "Acceptance Criteria": [
+      "The register and login forms are tested for success, validation errors and API errors",
+      "Session handling is tested: signing in, signing out and a refresh with a stored session",
+      "Staff-only pages are shown to redirect signed-out visitors",
+      "Tests query by role and label, as a user would, rather than by implementation details",
+      "Network calls are stubbed so tests are fast and need no server"
+    ],
+    "Branch": "testing"
+  },
+  {
+    "TaskId": "TESTING-005",
+    "Task Title": "Test the booking screens and set up coverage reporting",
+    "Task Description": "The availability, booking creation and booking management screens have no tests. Cover them, then set up coverage reporting for both api and ui so the team can see what is still untested and keep it from slipping.",
+    "Acceptance Criteria": [
+      "The availability view, the new booking form and the bookings list are tested, including error and empty states",
+      "Interactions such as cancelling and assigning a game master are tested end to end through the UI with a stubbed API",
+      "Coverage is reported for both api and ui with one command each",
+      "A sensible coverage threshold is enforced and you can explain why you chose it",
+      "You can describe which code you chose not to test, and why"
+    ],
+    "Branch": "testing"
+  }
+]
